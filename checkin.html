@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>เช็คชื่อเข้าเรียน</title>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <style>
+        * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, sans-serif; }
+        body { background: #0f172a; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 20px; }
+        .card { background: white; padding: 32px 24px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); width: 100%; max-width: 380px; text-align: center; }
+        h2 { color: #1e293b; margin: 0 0 8px 0; font-size: 1.5rem; }
+        p.subtitle { color: #64748b; font-size: 0.95rem; margin-bottom: 24px; }
+        .input-group { margin-bottom: 20px; }
+        input { width: 100%; padding: 16px; border: 2px solid #e2e8f0; border-radius: 12px; font-size: 1.2rem; text-align: center; font-weight: bold; outline: none; transition: 0.2s; }
+        input:focus { border-color: #16a34a; box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.15); }
+        button { width: 100%; padding: 16px; background: #16a34a; color: white; border: none; border-radius: 12px; font-size: 1.1rem; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        button:active { transform: scale(0.98); }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h2>เช็คชื่อเข้าเรียน</h2>
+        <p class="subtitle" id="courseLabel">กำลังโหลดรายวิชา...</p>
+        <div class="input-group">
+            <input type="text" id="studentId" placeholder="กรอกรหัสนักศึกษา" autofocus maxlength="15" inputmode="numeric">
+        </div>
+        <button onclick="doCheckin()">บันทึกเข้าเรียน</button>
+    </div>
+
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const courseKey = urlParams.get('checkin');
+
+        if (!courseKey) {
+            Swal.fire({ icon: 'error', title: 'ไม่พบข้อมูลวิชา', text: 'กรุณาสแกน QR Code ใหม่อีกครั้ง' });
+        } else {
+            document.getElementById('courseLabel').innerText = `รหัสวิชา: ${courseKey}`;
+        }
+
+        async function doCheckin() {
+            const studentId = document.getElementById('studentId').value.trim();
+            if (!studentId) {
+                Swal.fire({ icon: 'warning', title: 'กรุณากรอกรหัสนักศึกษา' });
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/checkin', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ courseKey: courseKey, studentId: studentId })
+                });
+
+                const result = await response.json();
+                if (response.ok) {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'เช็คชื่อสำเร็จ!',
+                        text: result.message || 'บันทึกเวลาเข้าเรียนเรียบร้อยแล้ว',
+                        timer: 2000,
+                        showConfirmButton: false
+                    });
+                    document.getElementById('studentId').value = '';
+                } else {
+                    Swal.fire({ icon: 'error', title: 'เช็คชื่อไม่สำเร็จ', text: result.message || 'ไม่พบรหัสนักศึกษาในวิชานี้' });
+                }
+            } catch (err) {
+                Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้' });
+            }
+        }
+    </script>
+</body>
+</html>

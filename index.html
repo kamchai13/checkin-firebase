@@ -1,0 +1,1549 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบเช็คชื่อและจัดการเกรดนักศึกษา</title>
+
+    <!-- External Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+    <style>
+        .modal, .swal2-container { z-index: 9999 !important; }
+        * {
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: #f7f9fa;
+            color: #333;
+            padding-bottom: 40px;
+        }
+
+        /* --- สไตล์สำหรับแถบแจ้งเตือนลอยวิ่งจากขวาไปซ้าย --- */
+        #classNotificationBanner {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            background: linear-gradient(90deg, #d9534f 0%, #ff4d4d 100%);
+            color: #ffffff;
+            z-index: 9999;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            overflow: hidden;
+            white-space: nowrap;
+            font-weight: bold;
+            font-size: 1.05rem;
+            padding: 8px 0;
+            border-bottom: 2px solid #b30000;
+        }
+
+        .ticker-text {
+            display: inline-block;
+            padding-left: 100%;
+            animation: marquee 20s linear infinite;
+        }
+
+        @keyframes marquee {
+            0% { transform: translate(0, 0); }
+            100% { transform: translate(-100%, 0); }
+        }
+
+        header {
+            background: linear-gradient(135deg, #f5d000 0%, #e6b800 100%);
+            color: #1a3300;
+            padding: 20px;
+            text-align: center;
+            border-bottom: 4px solid #006633;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+            margin-top: 0px;
+            transition: margin-top 0.3s;
+        }
+
+        header.has-banner {
+            margin-top: 40px;
+        }
+
+        nav {
+            display: flex;
+            justify-content: center;
+            background-color: #004d26;
+            padding: 8px 10px;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .menu-btn {
+            background: transparent;
+            border: 1px solid transparent;
+            color: #ffffff;
+            padding: 8px 18px;
+            cursor: pointer;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 0.95rem;
+            transition: all 0.2s;
+        }
+
+        .menu-btn:hover {
+            background-color: #006633;
+            color: #ffeb3b;
+        }
+
+        .menu-btn.active {
+            background-color: #007a3d;
+            color: #fffbcf;
+            border-bottom: 3px solid #f5d000;
+        }
+
+        .container {
+            max-width: 1050px;
+            margin: 20px auto;
+            background: white;
+            padding: 25px;
+            border-radius: 6px;
+            border: 1px solid #dcdcdc;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+
+        .sub-nav {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #006633;
+            padding-bottom: 10px;
+        }
+
+        .sub-btn {
+            background: #e9ecef;
+            border: 1px solid #ccc;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .sub-btn.active {
+            background: #006633;
+            color: white;
+            border-color: #004d26;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #004d26;
+        }
+
+        input[type="text"], input[type="number"], select, textarea, input[type="file"], input[type="time"] {
+            width: 100%;
+            padding: 9px;
+            border: 1px solid #bbb;
+            border-radius: 4px;
+            font-size: 0.95rem;
+        }
+
+        input[type="text"]:focus, select:focus, textarea:focus, input[type="time"]:focus {
+            outline: none;
+            border-color: #006633;
+            box-shadow: 0 0 4px rgba(0, 102, 51, 0.4);
+        }
+
+        button.btn-primary {
+            background-color: #006633;
+            color: white;
+            border: none;
+            padding: 9px 18px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.2s;
+        }
+
+        button.btn-primary:hover {
+            background-color: #004d26;
+        }
+
+        button.btn-danger {
+            background-color: #d9534f;
+            color: white;
+            border: none;
+            padding: 9px 18px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        button.btn-danger:hover {
+            background-color: #c9302c;
+        }
+
+        button.btn-secondary {
+            background-color: #6c757d;
+            color: white;
+            border: none;
+            padding: 9px 18px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        button.btn-secondary:hover {
+            background-color: #5a6268;
+        }
+
+        button.btn-success {
+            background-color: #1e7e34;
+            color: white;
+            border: none;
+            padding: 9px 18px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        button.btn-success:hover {
+            background-color: #145a23;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        th, td {
+            border: 1px solid #b2c8b2;
+            padding: 10px;
+            text-align: center;
+        }
+
+        th {
+            background-color: #005e54;
+            color: white;
+            font-weight: bold;
+        }
+
+        tr:nth-child(even) {
+            background-color: #f4f9f4;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5);
+            justify-content: center;
+            align-items: center;
+            z-index: 10000;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 22px;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 480px;
+            position: relative;
+            border-top: 5px solid #006633;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+
+        .close-btn {
+            position: absolute;
+            top: 10px; right: 15px;
+            font-size: 22px;
+            cursor: pointer;
+            color: #666;
+        }
+
+        .course-card {
+            border: 1px solid #cae0ca;
+            background-color: #fcfdfc;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 6px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            border-left: 5px solid #006633;
+        }
+
+        .course-card:hover {
+            background-color: #eef7ee;
+        }
+
+        .course-code {
+            font-weight: bold;
+            color: #006633;
+        }
+
+        .score-input {
+            width: 65px;
+            text-align: center;
+        }
+
+        .delete-confirm-box {
+            background-color: #fff5f5;
+            border: 1px solid #feb2b2;
+            border-radius: 6px;
+            padding: 12px 15px;
+            margin: 15px 0;
+            text-align: left;
+        }
+
+        .delete-confirm-box p {
+            margin: 4px 0;
+            color: #4a5568;
+            font-size: 0.95rem;
+        }
+
+        #scannerContainer {
+            width: 100%;
+            max-width: 320px;
+            height: 240px;
+            margin: 10px auto;
+            border: 2px dashed #006633;
+            border-radius: 8px;
+            overflow: hidden;
+            position: relative;
+            background: #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #videoPreview {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+    </style>
+</head>
+<body>
+
+<div id="classNotificationBanner">
+    <div class="ticker-text" id="bannerText"></div>
+</div>
+
+<header id="mainHeader">
+    <h1>ระบบเช็คชื่อและจัดการเกรดนักศึกษา</h1>
+</header>
+
+<nav>
+    <button id="btn-tab-checkin" class="menu-btn active" onclick="switchTab('checkin')">เช็คชื่อเข้าเรียน</button>
+    <button id="btn-tab-score" class="menu-btn" onclick="switchTab('score')">จัดการคะแนนและเกรด</button>
+    <button id="btn-tab-schedule" class="menu-btn" onclick="switchTab('schedule')">ตารางสอน</button>
+    <button id="btn-tab-manage" class="menu-btn" onclick="switchTab('manage')">จัดการรายวิชา</button>
+</nav>
+
+<div class="container">
+    <!-- TAB 1: Check-in -->
+    <div id="tab-checkin">
+        <h2>เช็คชื่อเข้าเรียน</h2>
+        <div style="margin-top: 15px;">
+            <div class="form-group">
+                <label for="currentSubject">เลือกรายวิชา:</label>
+                <select id="currentSubject" onchange="onSubjectChange('checkin')"></select>
+            </div>
+            
+            <div id="subjectInfoBox" style="background:#eef7ee; padding:15px; border-radius:6px; margin-bottom:15px; display:none; border-left:4px solid #006633;">
+                <h3 id="infoTitle" style="color:#004d26;">-</h3>
+                <p id="infoDetail" style="color:#555; margin-top:5px;">-</p>
+                <div style="margin-top:10px; display:flex; gap:10px;">
+                    <canvas id="canvas-qr"></canvas>
+                </div>
+            </div>
+
+            <div style="margin-bottom: 15px; display:flex; gap:10px; flex-wrap:wrap;">
+                <button class="btn-primary" onclick="openStudentScanModal()">📷 สแกน / กรอกรหัสเช็คชื่อ</button>
+                <button class="btn-primary" onclick="openAddStudentModal()">+ เพิ่มนักศึกษา (รายคน)</button>
+                <button class="btn-success" onclick="openFileImportModal()">📂 นำเข้าจากไฟล์ (Excel / CSV / TXT)</button>
+            </div>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>ลำดับ</th>
+                        <th>รหัสนักศึกษา</th>
+                        <th>ชื่อ-นามสกุล</th>
+                        <th>เวลาสแกน</th>
+                        <th>สถานะ</th>
+                        <th>จัดการ</th>
+                    </tr>
+                </thead>
+                <tbody id="attendanceTableBody">
+                    <tr><td colspan="6" style="color:#888;">โปรดเลือกรายวิชา</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- TAB 2: Score -->
+    <div id="tab-score" style="display:none;">
+        <h2>จัดการคะแนนและเกรด</h2>
+        <div style="margin-top: 15px;">
+            <div class="form-group">
+                <label for="scoreSubjectSelect">เลือกรายวิชา:</label>
+                <select id="scoreSubjectSelect" onchange="onSubjectChange('score')"></select>
+            </div>
+
+            <div style="margin-bottom: 15px;">
+                <button class="btn-success" onclick="exportToExcel()">ส่งออกไฟล์ Excel</button>
+            </div>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>รหัสนักศึกษา</th>
+                        <th>ชื่อ-นามสกุล</th>
+                        <th>จิตพิสัย (10)</th>
+                        <th>งาน/เก็บ (50)</th>
+                        <th>กลางภาค (20)</th>
+                        <th>ปลายภาค (20)</th>
+                        <th>รวม (100)</th>
+                        <th>เกรด</th>
+                    </tr>
+                </thead>
+                <tbody id="scoreTableBody">
+                    <tr><td colspan="8" style="color:#888;">โปรดเลือกรายวิชา</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- TAB 3: Schedule -->
+    <div id="tab-schedule" style="display:none;">
+        <h2>ตารางสอน</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>วัน</th>
+                    <th>เวลา</th>
+                    <th>รหัสวิชา</th>
+                    <th>ชื่อวิชา</th>
+                    <th>Sec</th>
+                    <th>ห้องเรียน</th>
+                </tr>
+            </thead>
+            <tbody id="scheduleTableBody">
+            </tbody>
+        </table>
+    </div>
+
+    <!-- TAB 4: Manage Courses -->
+    <div id="tab-manage" style="display:none;">
+        <h2>จัดการรายวิชา</h2>
+        <div class="sub-nav">
+            <button id="sub-btn-add" class="sub-btn active" onclick="switchManageSubTab('add')">เพิ่มวิชาใหม่</button>
+            <button id="sub-btn-edit" class="sub-btn" onclick="switchManageSubTab('edit')">แก้ไข/ลบ วิชา</button>
+        </div>
+
+        <div id="sub-manage-init">
+            <p>เลือกเมนูด้านบนเพื่อเริ่มจัดการรายวิชา</p>
+        </div>
+
+        <div id="sub-manage-add" style="display:none;">
+            <div class="form-group">
+                <label>รหัสวิชา:</label>
+                <input type="text" id="addCourseCode" placeholder="เช่น GEN 1201-62">
+            </div>
+            <div class="form-group">
+                <label>ชื่อวิชา:</label>
+                <input type="text" id="addCourseName" placeholder="เช่น Computer Programming">
+            </div>
+            <div class="form-group">
+                <label>Section:</label>
+                <input type="text" id="addCourseSec" placeholder="เช่น 52">
+            </div>
+            <div class="form-group">
+                <label>วันเรียน:</label>
+                <select id="addCourseDay">
+                    <option value="จันทร์">จันทร์</option>
+                    <option value="อังคาร">อังคาร</option>
+                    <option value="พุธ">พุธ</option>
+                    <option value="พฤหัสบดี">พฤหัสบดี</option>
+                    <option value="ศุกร์">ศุกร์</option>
+                    <option value="เสาร์">เสาร์</option>
+                    <option value="อาทิตย์">อาทิตย์</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>เวลาเริ่ม:</label>
+                <input type="time" id="addTimeStart" value="09:00">
+            </div>
+            <div class="form-group">
+                <label>เวลาสิ้นสุด:</label>
+                <input type="time" id="addTimeEnd" value="12:00">
+            </div>
+            <div class="form-group">
+                <label>ห้องเรียน:</label>
+                <input type="text" id="addRoom" placeholder="เช่น B407">
+            </div>
+            <button class="btn-primary" onclick="saveNewCourse()">บันทึกรายวิชา</button>
+        </div>
+
+        <div id="sub-manage-edit" style="display:none;">
+            <div id="courseListContainer"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal สแกน QR / กรอกรหัสนักศึกษา -->
+<div id="studentScanModal" class="modal">
+    <div class="modal-content">
+        <span class="close-btn" onclick="closeStudentScanModal()">&times;</span>
+        <h3>สแกน QR Code / กรอกรหัสนักศึกษา</h3>
+        
+        <div id="scannerContainer">
+            <video id="videoPreview" playsinline></video>
+        </div>
+        <p style="font-size: 0.8em; color: #666; text-align: center; margin-bottom: 10px;">
+            นำ QR Code มาจ่อที่กล้องเพื่อสแกนอัตโนมัติ
+        </p>
+        
+        <hr style="margin: 10px 0;">
+
+        <div class="form-group">
+            <label for="studentIdInput">หรือกรอกรหัสนักศึกษา:</label>
+            <input type="text" id="studentIdInput" placeholder="พิมพ์รหัสนักศึกษาที่นี่..." onkeyup="if(event.key === 'Enter') submitStudentAttendance()">
+        </div>
+        <button class="btn-primary" style="width:100%;" onclick="submitStudentAttendance()">บันทึกเข้าเรียน</button>
+    </div>
+</div>
+
+<!-- Modal เพิ่มนักศึกษาใหม่ -->
+<div id="addStudentModal" class="modal">
+    <div class="modal-content">
+        <span class="close-btn" onclick="closeAddStudentModal()">&times;</span>
+        <h3>เพิ่มนักศึกษา</h3>
+        <div class="form-group" style="margin-top: 15px;">
+            <label>รหัสนักศึกษา:</label>
+            <input type="text" id="newStdId">
+        </div>
+        <div class="form-group">
+            <label>ชื่อ-นามสกุล:</label>
+            <input type="text" id="newStdName">
+        </div>
+        <button class="btn-primary" onclick="saveNewStudentToCurrentCourse()">เพิ่มข้อมูล</button>
+    </div>
+</div>
+
+<!-- Modal นำเข้าไฟล์ -->
+<div id="fileImportModal" class="modal">
+    <div class="modal-content">
+        <span class="close-btn" onclick="closeFileImportModal()">&times;</span>
+        <h3>นำเข้ารายชื่อนักศึกษาจากไฟล์</h3>
+        <p style="font-size: 0.85em; color: #666; margin-top: 5px; margin-bottom: 15px;">
+            รองรับไฟล์ <b>.xlsx, .xls, .csv, .txt</b> ระบบจะค้นหารหัสนักศึกษาและชื่อให้อัตโนมัติ
+        </p>
+        <div class="form-group">
+            <label>เลือกไฟล์รายชื่อ:</label>
+            <input type="file" id="importFileInput" accept=".xlsx, .xls, .csv, .txt" onchange="previewImportFile(this)">
+        </div>
+        <div id="filePreviewArea" style="display:none; margin-top:15px; max-height:150px; overflow-y:auto; background:#f9f9f9; padding:10px; border:1px solid #ddd; border-radius:4px; font-size:0.85em;">
+            <b>พรีวิวข้อมูลที่พบ:</b>
+            <ul id="previewList" style="padding-left:20px; margin-top:5px;"></ul>
+        </div>
+        <button class="btn-primary" style="margin-top:15px; width:100%;" onclick="processImportedFile()">บันทึกนำเข้าข้อมูล</button>
+    </div>
+</div>
+
+<!-- Modal แก้ไขข้อมูลนักศึกษา -->
+<div id="editStudentModal" class="modal">
+    <div class="modal-content">
+        <span class="close-btn" onclick="closeEditStudentModal()">&times;</span>
+        <h3>แก้ไขข้อมูลนักศึกษา</h3>
+        <input type="hidden" id="editStdIndex">
+        <div class="form-group" style="margin-top: 15px;">
+            <label>รหัสนักศึกษา:</label>
+            <input type="text" id="editStdId">
+        </div>
+        <div class="form-group">
+            <label>ชื่อ-นามสกุล:</label>
+            <input type="text" id="editStdName">
+        </div>
+        <button class="btn-primary" onclick="saveUpdateStudent()">บันทึกแก้ไข</button>
+    </div>
+</div>
+
+<!-- Modal ยืนยันการลบนักศึกษา -->
+<div id="deleteConfirmModal" class="modal">
+    <div class="modal-content" style="border-top-color: #d9534f; text-align: center;">
+        <span class="close-btn" onclick="closeDeleteConfirmModal()">&times;</span>
+        <div style="font-size: 40px; color: #d9534f; margin-bottom: 10px;">⚠️</div>
+        <h3 style="color: #c9302c;">ยืนยันการถอนรายชื่อนักศึกษา</h3>
+        <p style="color: #666; font-size: 0.9rem; margin-top: 5px;">คุณต้องการลบรายชื่อนักศึกษาคนนี้ออกจากวิชาใช่หรือไม่?</p>
+        <div class="delete-confirm-box">
+            <p>📌 <b>รหัสนักศึกษา:</b> <span id="confirmDeleteId" style="color: #006633; font-weight: bold;">-</span></p>
+            <p>👤 <b>ชื่อ-นามสกุล:</b> <span id="confirmDeleteName" style="color: #006633; font-weight: bold;">-</span></p>
+        </div>
+        <input type="hidden" id="deleteTargetIndex">
+        <div style="display: flex; gap: 10px; justify-content: center; margin-top: 15px;">
+            <button class="btn-secondary" style="flex: 1;" onclick="closeDeleteConfirmModal()">ยกเลิก</button>
+            <button class="btn-danger" style="flex: 1;" onclick="executeDeleteStudent()">ยืนยันถอนรายชื่อ</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal แก้ไข/ลบวิชา -->
+<div id="courseModal" class="modal">
+    <div class="modal-content">
+        <span class="close-btn" onclick="closeModal()">&times;</span>
+        <h3>แก้ไข / ลบ รายวิชา</h3>
+        <input type="hidden" id="editOriginalKey">
+        <div class="form-group" style="margin-top: 15px;">
+            <label>รหัสวิชา:</label>
+            <input type="text" id="editCourseCode" placeholder="เช่น GEN 1201-62">
+        </div>
+        <div class="form-group">
+            <label>ชื่อวิชา:</label>
+            <input type="text" id="editCourseName">
+        </div>
+        <div class="form-group">
+            <label>Section:</label>
+            <input type="text" id="editCourseSec" placeholder="เช่น 52">
+        </div>
+        <div class="form-group">
+            <label>วันเรียน:</label>
+            <select id="editCourseDay">
+                <option value="จันทร์">จันทร์</option>
+                <option value="อังคาร">อังคาร</option>
+                <option value="พุธ">พุธ</option>
+                <option value="พฤหัสบดี">พฤหัสบดี</option>
+                <option value="ศุกร์">ศุกร์</option>
+                <option value="เสาร์">เสาร์</option>
+                <option value="อาทิตย์">อาทิตย์</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>เวลาเริ่ม:</label>
+            <input type="time" id="editTimeStart">
+        </div>
+        <div class="form-group">
+            <label>เวลาสิ้นสุด:</label>
+            <input type="time" id="editTimeEnd">
+        </div>
+        <div class="form-group">
+            <label>ห้องเรียน:</label>
+            <input type="text" id="editRoom" placeholder="เช่น B407">
+        </div>
+        <div style="display:flex; justify-content:space-between; margin-top:15px;">
+            <button class="btn-primary" onclick="updateCourse()">บันทึกการแก้ไข</button>
+            <button class="btn-danger" onclick="deleteCourse()">ลบวิชานี้</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- Data Storage Handling ---
+    let courseStudentsData = JSON.parse(localStorage.getItem('courseStudentsData')) || {};
+    let importedStudentsTemp = [];
+    let videoStream = null;
+    let scanAnimationId = null;
+
+    function getCourses() {
+        return JSON.parse(localStorage.getItem('coursesData')) || [];
+    }
+
+    function saveCoursesToStorage(courses) {
+        localStorage.setItem('coursesData', JSON.stringify(courses));
+        updateDropdownOptions();
+    }
+
+    function saveCourseStudentsData() {
+        localStorage.setItem('courseStudentsData', JSON.stringify(courseStudentsData));
+    }
+
+    function getStudentsByCourse(courseKey) {
+        if (!courseStudentsData[courseKey]) {
+            courseStudentsData[courseKey] = [];
+        }
+        return courseStudentsData[courseKey];
+    }
+
+    function cleanStudentData(name, id) {
+        return {
+            id: String(id || '').trim(),
+            name: String(name || '').trim()
+        };
+    }
+
+    function updateDropdownOptions() {
+        const courses = getCourses();
+        const select1 = document.getElementById('currentSubject');
+        const select2 = document.getElementById('scoreSubjectSelect');
+
+        select1.innerHTML = '<option value="">-- เลือกรายวิชา --</option>';
+        select2.innerHTML = '<option value="">-- เลือกรายวิชา --</option>';
+
+        courses.forEach(c => {
+            const opt = `<option value="${c.key}">[${c.code}] ${c.name} (Sec ${c.sec})</option>`;
+            select1.innerHTML += opt;
+            select2.innerHTML += opt;
+        });
+
+        // ดึงวิชาล่าสุดที่เคยเลือกไว้ซิงค์คืนค่าทันที
+        const lastSelected = localStorage.getItem('selectedCourseKey');
+        if (lastSelected) {
+            select1.value = lastSelected;
+            select2.value = lastSelected;
+        }
+    }
+
+    // --- ระบบซิงค์เลือกวิชารวมศูนย์ (เปลี่ยนที่ไหน ซิงค์ตรงกันทุกหน้า) ---
+    function onSubjectChange(source) {
+        const val1 = document.getElementById('currentSubject').value;
+        const val2 = document.getElementById('scoreSubjectSelect').value;
+        
+        let targetKey = source === 'checkin' ? val1 : val2;
+
+        // บันทึกลงความจำเพื่อใช้อ้างอิงร่วมกัน
+        localStorage.setItem('selectedCourseKey', targetKey);
+
+        // ซิงค์ค่าให้อีก Dropdown ตรงกันทันที
+        document.getElementById('currentSubject').value = targetKey;
+        document.getElementById('scoreSubjectSelect').value = targetKey;
+
+        // อัปเดตข้อมูลของทั้ง 2 แท็บ
+        renderCheckinSubjectInfo(targetKey);
+        renderAttendanceTable();
+        renderScoreTable();
+    }
+
+    function renderCheckinSubjectInfo(key) {
+        const courses = getCourses();
+        const course = courses.find(c => c.key === key);
+        const infoBox = document.getElementById('subjectInfoBox');
+
+        if (course) {
+            document.getElementById('infoTitle').innerText = `[${course.code}] ${course.name} (Sec ${course.sec})`;
+            document.getElementById('infoDetail').innerText = `เรียนวัน${course.day} เวลา ${course.start} - ${course.end} น. | ห้อง ${course.room}`;
+            infoBox.style.display = 'block';
+        generateQRCode(`https://${window.location.host}/checkin.html?checkin=${course.key}`);
+        } else {
+            infoBox.style.display = 'none';
+            clearQRCode();
+        }
+    }
+
+    function renderAttendanceTable() {
+        const key = document.getElementById('currentSubject').value;
+        const tbody = document.getElementById('attendanceTableBody');
+        tbody.innerHTML = '';
+
+        if (!key) {
+            tbody.innerHTML = '<tr><td colspan="6" style="color:#888;">โปรดเลือกรายวิชา</td></tr>';
+            return;
+        }
+
+        const students = getStudentsByCourse(key);
+        if (students.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" style="color:#888;">ยังไม่มีรายชื่อนักศึกษาในวิชานี้</td></tr>';
+            return;
+        }
+
+        students.forEach((s, idx) => {
+            const cleaned = cleanStudentData(s.name, s.id);
+            const statusBadge = s.status === 'มาเรียน' ? '<span style="color:green; font-weight:bold;">มาเรียน</span>' : '<span style="color:red;">ยังไม่เช็คชื่อ</span>';
+            tbody.innerHTML += `
+                <tr>
+                    <td>${idx + 1}</td>
+                    <td><b>${cleaned.id}</b></td>
+                    <td style="text-align:left;">${cleaned.name}</td>
+                    <td>${s.time || '-'}</td>
+                    <td>${statusBadge}</td>
+                    <td>
+                        <button class="btn-primary" style="padding:4px 8px; font-size:0.8rem;" onclick="openEditStudentModal(${idx})">แก้ไข</button>
+                        <button class="btn-danger" style="padding:4px 8px; font-size:0.8rem;" onclick="openDeleteConfirmModal(${idx})">ลบ</button>
+                    </td>
+                </tr>
+            `;
+        });
+    }
+
+    // --- ระบบเปิด/ปิด กล้องและช่องกรอกสำหรับสแกนเช็คชื่อ ---
+    function openStudentScanModal() {
+        const key = document.getElementById('currentSubject').value;
+        if (!key) {
+            Swal.fire({ icon: 'warning', title: 'โปรดเลือกรายวิชาก่อน', confirmButtonColor: '#006633' });
+            return;
+        }
+
+        document.getElementById('studentIdInput').value = '';
+        document.getElementById('studentScanModal').style.display = 'flex';
+        startCamera();
+    }
+
+    function closeStudentScanModal() {
+        stopCamera();
+        document.getElementById('studentScanModal').style.display = 'none';
+    }
+
+    function startCamera() {
+        const video = document.getElementById('videoPreview');
+        navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+            .then(stream => {
+                videoStream = stream;
+                video.srcObject = stream;
+                video.setAttribute("playsinline", true);
+                video.play();
+                scanAnimationId = requestAnimationFrame(scanQRCodeFromCamera);
+            })
+            .catch(err => {
+                console.log("ไม่สามารถเปิดกล้องได้: ", err);
+            });
+    }
+
+    function stopCamera() {
+        if (videoStream) {
+            videoStream.getTracks().forEach(track => track.stop());
+            videoStream = null;
+        }
+        if (scanAnimationId) {
+            cancelAnimationFrame(scanAnimationId);
+            scanAnimationId = null;
+        }
+    }
+
+    function scanQRCodeFromCamera() {
+        const video = document.getElementById('videoPreview');
+        if (video.readyState === video.HAVE_ENOUGH_DATA) {
+            const canvas = document.createElement("canvas");
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext("2d");
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const code = jsQR(imageData.data, imageData.width, imageData.height);
+
+            if (code) {
+                let scannedData = code.data.trim();
+                if (scannedData.startsWith("CHECKIN:")) {
+                    scannedData = scannedData.replace("CHECKIN:", "");
+                }
+                
+                document.getElementById('studentIdInput').value = scannedData;
+                stopCamera();
+                submitStudentAttendance();
+                return;
+            }
+        }
+        if (videoStream) {
+            scanAnimationId = requestAnimationFrame(scanQRCodeFromCamera);
+        }
+    }
+
+    function submitStudentAttendance() {
+        const inputId = document.getElementById('studentIdInput').value.trim();
+        const key = document.getElementById('currentSubject').value;
+
+        if (!inputId) {
+            Swal.fire({ icon: 'warning', title: 'กรุณากรอกหรือสแกนรหัสนักศึกษา', confirmButtonColor: '#006633' });
+            return;
+        }
+
+        const students = getStudentsByCourse(key);
+        const studentIndex = students.findIndex(s => String(s.id).trim() === inputId);
+
+        if (studentIndex !== -1) {
+            const now = new Date();
+            const timeStr = now.toTimeString().split(' ')[0].substring(0, 5) + ' น.';
+            students[studentIndex].status = 'มาเรียน';
+            students[studentIndex].time = timeStr;
+            students[studentIndex].scoreAtt = 10;
+
+            saveCourseStudentsData();
+            renderAttendanceTable();
+
+            Swal.fire({
+                icon: 'success',
+                title: 'เช็คชื่อสำเร็จ!',
+                text: `${students[studentIndex].name} (${students[studentIndex].id})`,
+                timer: 1500,
+                showConfirmButton: false
+            });
+
+            closeStudentScanModal();
+        } else {
+            Swal.fire({
+                icon: 'error',
+                title: 'ไม่พบรหัสนักศึกษา',
+                text: `รหัส ${inputId} ไม่มีในรายวิชานี้`,
+                confirmButtonColor: '#006633'
+            });
+        }
+    }
+
+    // --- Modal สำหรับการเพิ่มนักศึกษาแบบเดี่ยว ---
+    function openAddStudentModal() {
+        const key = document.getElementById('currentSubject').value;
+        if (!key) {
+            Swal.fire({ icon: 'warning', title: 'โปรดเลือกรายวิชาก่อน', confirmButtonColor: '#006633' });
+            return;
+        }
+        document.getElementById('newStdId').value = '';
+        document.getElementById('newStdName').value = '';
+        document.getElementById('addStudentModal').style.display = 'flex';
+    }
+
+    function closeAddStudentModal() {
+        document.getElementById('addStudentModal').style.display = 'none';
+    }
+
+    function saveNewStudentToCurrentCourse() {
+        const key = document.getElementById('currentSubject').value;
+        const id = document.getElementById('newStdId').value.trim();
+        const name = document.getElementById('newStdName').value.trim();
+
+        if (!id || !name) {
+            Swal.fire({ icon: 'warning', title: 'กรุณากรอกข้อมูลให้ครบถ้วน', confirmButtonColor: '#006633' });
+            return;
+        }
+
+        const students = getStudentsByCourse(key);
+        if (students.some(s => String(s.id).trim() === id)) {
+            Swal.fire({ icon: 'error', title: 'รหัสนักศึกษาซ้ำ!', text: 'มีรหัสนักศึกษานี้ในรายวิชาแล้ว', confirmButtonColor: '#006633' });
+            return;
+        }
+
+        students.push({
+            id: id,
+            name: name,
+            status: 'ยังไม่เช็คชื่อ',
+            time: '',
+            scoreAtt: 0,
+            scoreWork: 0,
+            scoreMid: 0,
+            scoreFinal: 0
+        });
+
+        saveCourseStudentsData();
+        renderAttendanceTable();
+        renderScoreTable();
+        closeAddStudentModal();
+        Swal.fire({ icon: 'success', title: 'เพิ่มนักศึกษาเรียบร้อย', confirmButtonColor: '#006633' });
+    }
+
+    // --- Modal และการจัดการนำเข้าจากไฟล์ (เวอร์ชันอัจฉริยะ Auto-Detect) ---
+    function openFileImportModal() {
+        const key = document.getElementById('currentSubject').value;
+        if (!key) {
+            Swal.fire({ icon: 'warning', title: 'โปรดเลือกรายวิชาก่อน', confirmButtonColor: '#006633' });
+            return;
+        }
+        document.getElementById('importFileInput').value = '';
+        document.getElementById('filePreviewArea').style.display = 'none';
+        importedStudentsTemp = [];
+        document.getElementById('fileImportModal').style.display = 'flex';
+    }
+
+    function closeFileImportModal() {
+        document.getElementById('fileImportModal').style.display = 'none';
+    }
+
+    function previewImportFile(input) {
+        const file = input.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        const extension = file.name.split('.').pop().toLowerCase();
+
+        reader.onload = function (e) {
+            const data = e.target.result;
+            importedStudentsTemp = [];
+
+            let rawRows = [];
+
+            if (extension === 'xlsx' || extension === 'xls' || extension === 'csv') {
+                const workbook = XLSX.read(data, { type: 'binary' });
+                const firstSheet = workbook.SheetNames[0];
+                rawRows = XLSX.utils.sheet_to_json(workbook.Sheets[firstSheet], { header: 1 });
+            } else if (extension === 'txt') {
+                const lines = data.split('\n');
+                rawRows = lines.map(line => line.split(/[\t,;|]/));
+            }
+
+            rawRows.forEach(row => {
+                if (!Array.isArray(row) || row.length === 0) return;
+
+                let foundId = '';
+                let foundName = '';
+
+                const cells = row.map(cell => String(cell || '').trim()).filter(cell => cell !== '');
+
+                for (let i = 0; i < cells.length; i++) {
+                    const cleanCell = cells[i].replace(/[-_ ]/g, '');
+                    if (/^\d{7,13}$/.test(cleanCell)) {
+                        foundId = cells[i];
+                        break;
+                    }
+                }
+
+                if (foundId) {
+                    for (let i = 0; i < cells.length; i++) {
+                        const cell = cells[i];
+                        if (cell !== foundId && !cell.includes('@') && !/^\d{1,4}$/.test(cell)) {
+                            if (!/^(ลำดับ|รหัส|ชื่อ|No\.|ID|Name)/i.test(cell) && /[ก-๙a-zA-Z]/.test(cell)) {
+                                foundName = cell;
+                                if (cell.includes(' ') || /^(นาย|นาง|นางสาว|ด.ช.|ด.ญ.|Mr.|Mrs.|Miss)/.test(cell)) {
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (foundId) {
+                    importedStudentsTemp.push({
+                        id: foundId,
+                        name: foundName || 'ไม่ระบุชื่อ'
+                    });
+                }
+            });
+
+            const previewList = document.getElementById('previewList');
+            previewList.innerHTML = '';
+            
+            if (importedStudentsTemp.length === 0) {
+                previewList.innerHTML = '<li style="color:red;">ไม่พบข้อมูลรหัสนักศึกษาในไฟล์นี้</li>';
+            } else {
+                importedStudentsTemp.forEach(s => {
+                    previewList.innerHTML += `<li><b>${s.id}</b> - ${s.name}</li>`;
+                });
+            }
+            
+            document.getElementById('filePreviewArea').style.display = 'block';
+        };
+
+        if (extension === 'xlsx' || extension === 'xls') {
+            reader.readAsBinaryString(file);
+        } else {
+            reader.readAsText(file, 'UTF-8');
+        }
+    }
+
+    function processImportedFile() {
+        if (importedStudentsTemp.length === 0) {
+            Swal.fire({ icon: 'warning', title: 'ไม่พบข้อมูลในไฟล์', confirmButtonColor: '#006633' });
+            return;
+        }
+
+        const key = document.getElementById('currentSubject').value;
+        const students = getStudentsByCourse(key);
+
+        let addedCount = 0;
+        importedStudentsTemp.forEach(imp => {
+            if (!students.some(s => String(s.id).trim() === imp.id)) {
+                students.push({
+                    id: imp.id,
+                    name: imp.name,
+                    status: 'ยังไม่เช็คชื่อ',
+                    time: '',
+                    scoreAtt: 0,
+                    scoreWork: 0,
+                    scoreMid: 0,
+                    scoreFinal: 0
+                });
+                addedCount++;
+            }
+        });
+
+        saveCourseStudentsData();
+        renderAttendanceTable();
+        renderScoreTable();
+        closeFileImportModal();
+
+        Swal.fire({
+            icon: 'success',
+            title: 'นำเข้าข้อมูลสำเร็จ',
+            text: `เพิ่มนักศึกษาสำเร็จ ${addedCount} รายการ`,
+            confirmButtonColor: '#006633'
+        });
+    }
+
+    // --- Modal แก้ไขนักศึกษา ---
+    function openEditStudentModal(idx) {
+        const key = document.getElementById('currentSubject').value;
+        const students = getStudentsByCourse(key);
+        const std = students[idx];
+
+        document.getElementById('editStdIndex').value = idx;
+        document.getElementById('editStdId').value = std.id;
+        document.getElementById('editStdName').value = std.name;
+        document.getElementById('editStudentModal').style.display = 'flex';
+    }
+
+    function closeEditStudentModal() {
+        document.getElementById('editStudentModal').style.display = 'none';
+    }
+
+    function saveUpdateStudent() {
+        const key = document.getElementById('currentSubject').value;
+        const idx = document.getElementById('editStdIndex').value;
+        const students = getStudentsByCourse(key);
+
+        students[idx].id = document.getElementById('editStdId').value.trim();
+        students[idx].name = document.getElementById('editStdName').value.trim();
+
+        saveCourseStudentsData();
+        renderAttendanceTable();
+        renderScoreTable();
+        closeEditStudentModal();
+        Swal.fire({ icon: 'success', title: 'แก้ไขเรียบร้อยแล้ว', confirmButtonColor: '#006633' });
+    }
+
+    // --- Modal ลบนักศึกษา ---
+    function openDeleteConfirmModal(idx) {
+        const key = document.getElementById('currentSubject').value;
+        const students = getStudentsByCourse(key);
+        const std = students[idx];
+
+        document.getElementById('deleteTargetIndex').value = idx;
+        document.getElementById('confirmDeleteId').innerText = std.id;
+        document.getElementById('confirmDeleteName').innerText = std.name;
+        document.getElementById('deleteConfirmModal').style.display = 'flex';
+    }
+
+    function closeDeleteConfirmModal() {
+        document.getElementById('deleteConfirmModal').style.display = 'none';
+    }
+
+    function executeDeleteStudent() {
+        const key = document.getElementById('currentSubject').value;
+        const idx = document.getElementById('deleteTargetIndex').value;
+        let students = getStudentsByCourse(key);
+
+        students.splice(idx, 1);
+        saveCourseStudentsData();
+        renderAttendanceTable();
+        renderScoreTable();
+        closeDeleteConfirmModal();
+        Swal.fire({ icon: 'success', title: 'ถอนรายชื่อสำเร็จ', confirmButtonColor: '#006633' });
+    }
+
+    // --- TAB 2: Score Functionality ---
+    function renderScoreTable() {
+        const currentKey = document.getElementById('scoreSubjectSelect').value;
+        const tbody = document.getElementById('scoreTableBody');
+        tbody.innerHTML = '';
+
+        if (!currentKey) {
+            tbody.innerHTML = '<tr><td colspan="8" style="color:#888;">โปรดเลือกรายวิชา</td></tr>';
+            return;
+        }
+
+        const students = getStudentsByCourse(currentKey);
+        if (students.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="8" style="color:#888;">ไม่มีข้อมูลนักศึกษาในวิชานี้</td></tr>';
+            return;
+        }
+
+        students.forEach((s, idx) => {
+            const cleaned = cleanStudentData(s.name, s.id);
+            const total = (Number(s.scoreAtt) || 0) + (Number(s.scoreWork) || 0) + (Number(s.scoreMid) || 0) + (Number(s.scoreFinal) || 0);
+            
+            let grade = 'F';
+            if (total >= 80) grade = 'A';
+            else if (total >= 75) grade = 'B+';
+            else if (total >= 70) grade = 'B';
+            else if (total >= 65) grade = 'C+';
+            else if (total >= 60) grade = 'C';
+            else if (total >= 55) grade = 'D+';
+            else if (total >= 50) grade = 'D';
+
+            let gradeColor = grade === 'F' ? 'red' : '#006633';
+
+            tbody.innerHTML += `
+                <tr>
+                    <td><b>${cleaned.id}</b></td>
+                    <td style="text-align:left;">${cleaned.name}</td>
+                    <td><input type="number" class="score-input" value="${s.scoreAtt || 0}" onchange="updateStudentScore('${currentKey}', ${idx}, 'scoreAtt', this.value)"></td>
+                    <td><input type="number" class="score-input" value="${s.scoreWork || 0}" onchange="updateStudentScore('${currentKey}', ${idx}, 'scoreWork', this.value)"></td>
+                    <td><input type="number" class="score-input" value="${s.scoreMid || 0}" onchange="updateStudentScore('${currentKey}', ${idx}, 'scoreMid', this.value)"></td>
+                    <td><input type="number" class="score-input" value="${s.scoreFinal || 0}" onchange="updateStudentScore('${currentKey}', ${idx}, 'scoreFinal', this.value)"></td>
+                    <td style="font-weight:bold;">${total}</td>
+                    <td style="font-weight:bold; color:${gradeColor};">${grade}</td>
+                </tr>
+            `;
+        });
+    }
+
+    function updateStudentScore(courseKey, index, field, value) {
+        const students = getStudentsByCourse(courseKey);
+        students[index][field] = Number(value) || 0;
+        saveCourseStudentsData();
+        renderScoreTable();
+    }
+
+    function exportToExcel() {
+        const currentKey = document.getElementById('scoreSubjectSelect').value;
+        const courses = getCourses();
+        const course = courses.find(c => c.key === currentKey);
+        const students = getStudentsByCourse(currentKey);
+
+        if (!course || students.length === 0) {
+            Swal.fire({ icon: 'warning', title: 'ไม่มีข้อมูลนักศึกษาในวิชานี้ให้ส่งออก', confirmButtonColor: '#006633' });
+            return;
+        }
+
+        const dataToExport = students.map((s, index) => {
+            const cleaned = cleanStudentData(s.name, s.id);
+            const total = (Number(s.scoreAtt) || 0) + (Number(s.scoreWork) || 0) + (Number(s.scoreMid) || 0) + (Number(s.scoreFinal) || 0);
+            let grade = 'F';
+            if (total >= 80) grade = 'A';
+            else if (total >= 75) grade = 'B+';
+            else if (total >= 70) grade = 'B';
+            else if (total >= 65) grade = 'C+';
+            else if (total >= 60) grade = 'C';
+            else if (total >= 55) grade = 'D+';
+            else if (total >= 50) grade = 'D';
+
+            return {
+                "ลำดับ": index + 1,
+                "รหัสนักศึกษา": cleaned.id,
+                "ชื่อ-นามสกุล": cleaned.name,
+                "สถานะเช็คชื่อ": s.status,
+                "เวลาสแกน": s.time,
+                "คะแนนเข้าเรียน (10)": s.scoreAtt,
+                "คะแนนงาน (50)": s.scoreWork,
+                "คะแนนกลางภาค (20)": s.scoreMid,
+                "คะแนนปลายภาค (20)": s.scoreFinal,
+                "รวม (100)": total,
+                "เกรด": grade
+            };
+        });
+
+        const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "คะแนนและเข้าเรียน");
+
+        const fileName = `รายงานคะแนน_${course.code}_Sec${course.sec}.xlsx`;
+        XLSX.writeFile(workbook, fileName);
+    }
+
+    function generateQRCode(dataText) {
+        const canvas = document.getElementById('canvas-qr');
+        if (canvas) {
+            QRCode.toCanvas(canvas, dataText, { width: 170, margin: 2 }, function (error) {
+                if (error) console.error(error);
+            });
+        }
+    }
+
+    function clearQRCode() {
+        const canvas = document.getElementById('canvas-qr');
+        if (canvas) {
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+    }
+
+    function switchTab(tab) {
+        document.getElementById('tab-checkin').style.display = tab === 'checkin' ? 'block' : 'none';
+        document.getElementById('tab-score').style.display = tab === 'score' ? 'block' : 'none';
+        document.getElementById('tab-schedule').style.display = tab === 'schedule' ? 'block' : 'none';
+        document.getElementById('tab-manage').style.display = tab === 'manage' ? 'block' : 'none';
+
+        document.querySelectorAll('.menu-btn').forEach(btn => btn.classList.remove('active'));
+        document.getElementById(`btn-tab-${tab}`).classList.add('active');
+
+        if (tab === 'manage') {
+            switchManageSubTab('none');
+        } else if (tab === 'schedule') {
+            renderSchedule();
+        } else if (tab === 'checkin') {
+            const key = document.getElementById('currentSubject').value;
+            renderCheckinSubjectInfo(key);
+            renderAttendanceTable();
+        } else if (tab === 'score') {
+            renderScoreTable();
+        }
+    }
+
+    function switchManageSubTab(subTab) {
+        document.getElementById('sub-manage-init').style.display = subTab === 'none' ? 'block' : 'none';
+        document.getElementById('sub-manage-add').style.display = subTab === 'add' ? 'block' : 'none';
+        document.getElementById('sub-manage-edit').style.display = subTab === 'edit' ? 'block' : 'none';
+
+        document.getElementById('sub-btn-add').classList.toggle('active', subTab === 'add');
+        document.getElementById('sub-btn-edit').classList.toggle('active', subTab === 'edit');
+
+        if (subTab === 'edit') renderCourseList();
+    }
+
+    function renderCourseList() {
+        const courses = getCourses();
+        const container = document.getElementById('courseListContainer');
+        container.innerHTML = '';
+
+        if (courses.length === 0) {
+            container.innerHTML = '<p style="text-align:center; color:#888;">ยังไม่มีวิชาในระบบ</p>';
+            return;
+        }
+
+        courses.forEach((c) => {
+            container.innerHTML += `
+                <div class="course-card" onclick="openEditModal('${c.key}')">
+                    <div>
+                        <div class="course-code">[${c.code}] ${c.name}</div>
+                        <div style="color:#666; margin-top:4px;">Sec: ${c.sec} | เรียน ${c.day} (${c.start} - ${c.end}) ห้อง ${c.room}</div>
+                    </div>
+                    <div style="color:#006633; font-weight:bold;">คลิกเพื่อแก้ไข ➔</div>
+                </div>
+            `;
+        });
+    }
+
+    function saveNewCourse() {
+        const code = document.getElementById('addCourseCode').value.trim();
+        const name = document.getElementById('addCourseName').value.trim();
+        const sec = document.getElementById('addCourseSec').value.trim() || "52";
+        const day = document.getElementById('addCourseDay').value;
+        const start = document.getElementById('addTimeStart').value;
+        const end = document.getElementById('addTimeEnd').value;
+        const room = document.getElementById('addRoom').value.trim();
+
+        if (!code || !name) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'ข้อมูลไม่ครบถ้วน',
+                text: 'กรุณากรอกรหัสวิชาและชื่อวิชาให้ครบถ้วน',
+                confirmButtonColor: '#006633'
+            });
+            return;
+        }
+
+        const key = `${code}_${sec}`;
+        let courses = getCourses();
+
+        if (courses.some(c => c.key === key)) {
+            Swal.fire({
+                icon: 'error',
+                title: 'รายวิชาซ้ำ',
+                text: 'รหัสวิชาและ Section นี้มีในระบบแล้ว!',
+                confirmButtonColor: '#006633'
+            });
+            return;
+        }
+
+        courses.push({ key, code, name, sec, day, start, end, room });
+        saveCoursesToStorage(courses);
+
+        Swal.fire({
+            icon: 'success',
+            title: 'บันทึกรายวิชาสำเร็จ!',
+            text: `เพิ่มวิชา [${code}] ${name} เรียบร้อยแล้ว`,
+            confirmButtonColor: '#006633',
+            timer: 2000
+        });
+
+        document.getElementById('addCourseCode').value = '';
+        document.getElementById('addCourseName').value = '';
+        document.getElementById('addCourseSec').value = '';
+        document.getElementById('addRoom').value = '';
+    }
+
+    function openEditModal(key) {
+        const courses = getCourses();
+        const course = courses.find(c => c.key === key);
+        if (!course) return;
+
+        document.getElementById('editOriginalKey').value = course.key;
+        document.getElementById('editCourseCode').value = course.code;
+        document.getElementById('editCourseName').value = course.name;
+        document.getElementById('editCourseSec').value = course.sec;
+        document.getElementById('editCourseDay').value = course.day;
+        document.getElementById('editTimeStart').value = course.start;
+        document.getElementById('editTimeEnd').value = course.end;
+        document.getElementById('editRoom').value = course.room;
+
+        document.getElementById('courseModal').style.display = 'flex';
+    }
+
+    function closeModal() {
+        document.getElementById('courseModal').style.display = 'none';
+    }
+
+    function updateCourse() {
+        const origKey = document.getElementById('editOriginalKey').value;
+        let courses = getCourses();
+        const course = courses.find(c => c.key === origKey);
+
+        if (course) {
+            const newCode = document.getElementById('editCourseCode').value.trim();
+            const newSec = document.getElementById('editCourseSec').value.trim();
+            const newKey = `${newCode}_${newSec}`;
+
+            if (origKey !== newKey) {
+                if (courseStudentsData[origKey]) {
+                    courseStudentsData[newKey] = courseStudentsData[origKey];
+                    delete courseStudentsData[origKey];
+                    saveCourseStudentsData();
+                }
+            }
+
+            course.key = newKey;
+            course.code = newCode;
+            course.name = document.getElementById('editCourseName').value;
+            course.sec = newSec;
+            course.day = document.getElementById('editCourseDay').value;
+            course.start = document.getElementById('editTimeStart').value;
+            course.end = document.getElementById('editTimeEnd').value;
+            course.room = document.getElementById('editRoom').value;
+
+            saveCoursesToStorage(courses);
+            Swal.fire({ icon: 'success', title: 'อัปเดตข้อมูลวิชาเรียบร้อยแล้ว', confirmButtonColor: '#006633' });
+            closeModal();
+            renderCourseList();
+        }
+    }
+
+    function deleteCourse() {
+        const origKey = document.getElementById('editOriginalKey').value;
+        
+        Swal.fire({
+            title: 'ยืนยันการลบวิชา?',
+            text: `คุณต้องการถอนวิชา ${origKey} ออกจากระบบใช่หรือไม่?`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d9534f',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: 'ใช่, ลบเลย!',
+            cancelButtonText: 'ยกเลิก'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                let courses = getCourses();
+                courses = courses.filter(c => c.key !== origKey);
+                delete courseStudentsData[origKey];
+                saveCourseStudentsData();
+                saveCoursesToStorage(courses);
+                
+                Swal.fire({ icon: 'success', title: 'ถอนวิชาเรียบร้อยแล้ว', confirmButtonColor: '#006633' });
+                closeModal();
+                renderCourseList();
+            }
+        });
+    }
+
+    function renderSchedule() {
+        const courses = getCourses();
+        const tbody = document.getElementById('scheduleTableBody');
+        if (!tbody) return;
+        tbody.innerHTML = '';
+        
+        courses.forEach(c => {
+            tbody.innerHTML += `
+                <tr>
+                    <td style="font-weight:bold; color:#006633;">${c.day}</td>
+                    <td>${c.start} - ${c.end} น.</td>
+                    <td><b>${c.code}</b></td>
+                    <td style="text-align:left;">${c.name}</td>
+                    <td><b>Sec ${c.sec}</b></td>
+                    <td>${c.room}</td>
+                </tr>
+            `;
+        });
+    }
+
+    // --- ระบบตรวจสอบเวลาเรียนและแสดงแถบแจ้งเตือนวิ่งแบบ Real-time ---
+    function checkClassScheduleAlert() {
+        const now = new Date();
+        const daysThai = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'];
+        const currentDay = daysThai[now.getDay()];
+
+        const currentTotalMinutes = (now.getHours() * 60) + now.getMinutes();
+        const courses = getCourses();
+        let activeCourses = [];
+
+        courses.forEach(course => {
+            if (!course.start || !course.end) return;
+
+            const [startH, startM] = course.start.split(':').map(Number);
+            const [endH, endM] = course.end.split(':').map(Number);
+            const startTotalMinutes = (startH * 60) + startM;
+            const endTotalMinutes = (endH * 60) + endM;
+
+            if (course.day === currentDay && currentTotalMinutes >= startTotalMinutes && currentTotalMinutes < endTotalMinutes) {
+                activeCourses.push(`⏰ ถึงเวลาคาบเรียน! วิชา: [${course.code}] ${course.name} (Sec ${course.sec}) | เวลา ${course.start} - ${course.end} น. | ห้องเรียน: ${course.room}`);
+            }
+        });
+
+        const banner = document.getElementById('classNotificationBanner');
+        const bannerText = document.getElementById('bannerText');
+        const header = document.getElementById('mainHeader');
+
+        if (activeCourses.length > 0) {
+            bannerText.innerText = activeCourses.join(' 💥 ');
+            banner.style.display = 'block';
+            header.classList.add('has-banner');
+        } else {
+            banner.style.display = 'none';
+            header.classList.remove('has-banner');
+        }
+    }
+
+    // เริ่มต้นรันระบบเมื่อโหลดหน้าเว็บ
+    updateDropdownOptions();
+    
+    // ตั้งค่าเริ่มต้นวิชาจากความจำล่าสุด
+    const initialKey = localStorage.getItem('selectedCourseKey');
+    if (initialKey) {
+        onSubjectChange('checkin');
+    }
+
+    checkClassScheduleAlert();
+    setInterval(checkClassScheduleAlert, 3000);
+
+    window.addEventListener('DOMContentLoaded', () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const checkinCourseKey = urlParams.get('checkin');
+
+    if (checkinCourseKey) {
+        // 1. ซ่อนกล้องสแกน (ไม่ให้ขึ้นจอดำ)
+        const scannerBox = document.getElementById('scannerContainer');
+        if (scannerBox) {
+            scannerBox.style.display = 'none';
+        }
+
+        // 2. แสดง Modal กรอกรหัส
+        const scanModal = document.getElementById('studentScanModal');
+        if (scanModal) {
+            scanModal.style.display = 'block';
+        }
+
+        // 3. เลือกรายวิชาให้อัตโนมัติ
+        const selectSubject = () => {
+            const subjectSelect = document.getElementById('currentSubject');
+            if (subjectSelect && subjectSelect.options.length > 1) {
+                subjectSelect.value = checkinCourseKey;
+                if (typeof onSubjectChange === 'function') {
+                    onSubjectChange();
+                }
+            } else {
+                setTimeout(selectSubject, 200);
+            }
+        };
+        selectSubject();
+    }
+});
+</script>
+
+</body>
+</html>
