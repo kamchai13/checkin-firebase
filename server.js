@@ -15,11 +15,15 @@ app.use(express.static(__dirname));
 let serviceAccount;
 
 if (process.env.FIREBASE_CONFIG) {
-    // สำหรับใช้งานบน Render (อ่านจาก Environment Variable)
-    serviceAccount = JSON.parse(process.env.FIREBASE_CONFIG);
+  // สำหรับใช้งานบน Render (อ่านจาก Environment Variable)
+  serviceAccount = JSON.parse(process.env.FIREBASE_CONFIG);
 } else {
-    // สำหรับรันบนเครื่อง Local
+  // สำหรับรับบนเครื่อง Local
+  try {
     serviceAccount = require('./serviceAccountKey.json');
+  } catch (err) {
+    console.error("Local serviceAccountKey.json not found!");
+  }
 }
 
 admin.initializeApp({
