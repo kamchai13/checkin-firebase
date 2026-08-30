@@ -16,7 +16,7 @@ let serviceAccount;
 
 if (process.env.FIREBASE_CONFIG) {
   // สำหรับใช้งานบน Render (อ่านจาก Environment Variable)
-  serviceAccount = JSON.parse(process.env.FIREBASE_CONFIG);
+  serviceAccount = JSON.parse(process.env.FIREBASE_CONFIG.replace(/\n/g, "\\n"));
 } else {
   // สำหรับรับบนเครื่อง Local
   try {
