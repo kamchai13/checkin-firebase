@@ -90,7 +90,7 @@ app.get('/checkin.html', (req, res) => {
 });
 
 // ----------------------------------------------------
-// API ระบบเช็คชื่อ (Firebase Firestore + ระบบคำนวณเวลาสาย 20 นาที)
+// API ระบบเช็คชื่อ (ปรับปรุงระบบค้นหารหัสนักศึกษาเพิ่มเติม)
 // ----------------------------------------------------
 app.post('/api/checkin', checkFirebaseConnection, async (req, res) => {
     try {
@@ -111,10 +111,19 @@ app.post('/api/checkin', checkFirebaseConnection, async (req, res) => {
         if (docSnap.exists) {
             studentData = docSnap.data();
         } else {
-            // 2. ถ้าค้นหาจาก Document ID ไม่เจอ ให้ลอง Query จาก Field 'student_id'
-            const querySnap = await studentsCol.where('student_id', '==', cleanStudentId).limit(1).get();
+            // 2. ถ้าไม่เจอ ลองค้นจาก Field 'student_id' แบบ String
+            let querySnap = await studentsCol.where('student_id', '==', cleanStudentId).limit(1).get();
             if (!querySnap.empty) {
                 studentData = querySnap.docs[0].data();
+            } else {
+                // 3. เผื่อกรณีข้อมูลใน DB เก็บรหัสเป็นตัวเลข (Number)
+                const numStudentId = Number(cleanStudentId);
+                if (!isNaN(numStudentId)) {
+                    querySnap = await studentsCol.where('student_id', '==', numStudentId).limit(1).get();
+                    if (!querySnap.empty) {
+                        studentData = querySnap.docs[0].data();
+                    }
+                }
             }
         }
 
@@ -182,7 +191,9 @@ app.get('/api/students/:subject', checkFirebaseConnection, async (req, res) => {
         attendanceSnap.forEach(doc => {
             const data = doc.data();
             const sid = data.student_id;
-            attendanceCounts[sid] = (attendanceCounts[sid] || 0) + 1;
+            if (sid) {
+                attendanceCounts[sid] = (attendanceCounts[sid] || 0) + 1;
+            }
         });
 
         const data = [];
@@ -288,7 +299,9 @@ app.get('/api/export/:subject', checkFirebaseConnection, async (req, res) => {
         attendanceSnap.forEach(doc => {
             const data = doc.data();
             const sid = data.student_id;
-            attendanceCounts[sid] = (attendanceCounts[sid] || 0) + 1;
+            if (sid) {
+                attendanceCounts[sid] = (attendanceCounts[sid] || 0) + 1;
+            }
         });
 
         const workbook = new ExcelJS.Workbook();
