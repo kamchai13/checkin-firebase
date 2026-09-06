@@ -62,7 +62,7 @@ function calculateGrade(total) {
     return 'F';
 }
 
-// Middleware ตรวจสอบการเชื่อมต่อ Firebase ก่อนรับ API (สำหรับ API ที่จำเป็นต้องใช้ DB)
+// Middleware ตรวจสอบการเชื่อมต่อ Firebase ก่อนรับ API
 const checkFirebaseConnection = (req, res, next) => {
   if (!db) {
     return res.status(500).json({ error: "Firebase DB is not initialized. Please check serviceAccountKey.json or FIREBASE_CONFIG." });
@@ -82,7 +82,7 @@ app.get('/checkin.html', (req, res) => {
 });
 
 // ----------------------------------------------------
-// API ระบบเช็คชื่อ (Fallback Mode: เช็คชื่อได้แม้อ่าน Firebase ไม่ผ่าน)
+// API ระบบเช็คชื่อ
 // ----------------------------------------------------
 app.post('/api/checkin', async (req, res) => {
     try {
@@ -97,7 +97,7 @@ app.post('/api/checkin', async (req, res) => {
 
         let studentData = null;
 
-        // 1. ค้นหาจาก Firebase Firestore ก่อน (ถ้าต่อ DB อยู่)
+        // 1. ค้นหาจาก Firebase Firestore
         if (studentsCol) {
             try {
                 const docRef = studentsCol.doc(cleanStudentId);
@@ -124,7 +124,7 @@ app.post('/api/checkin', async (req, res) => {
             }
         }
 
-        // 2. ถ้าค้นหาไม่พบใน Firebase ให้ใช้ข้อมูลชั่วคราวผ่านทันที
+        // 2. ถ้าค้นหาไม่พบใน Firebase
         if (!studentData) {
             studentData = {
                 student_id: cleanStudentId,
@@ -135,8 +135,8 @@ app.post('/api/checkin', async (req, res) => {
 
         const subjectToUse = cleanCourseKey || studentData.subject || 'GENERAL';
 
-        // คำนวณเวลาและสถานะเข้าเรียน
         const now = new Date();
+        const dateStr = now.toLocaleDateString('th-TH');
         const checkinTimeStr = now.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
         let status = 'มาเรียน';
 
@@ -150,7 +150,7 @@ app.post('/api/checkin', async (req, res) => {
             }
         }
 
-        // บันทึกเวลาเข้าเรียนลง Firestore (ถ้าต่อ DB ได้)
+        // บันทึกการเข้าเรียน
         if (attendanceCol) {
             try {
                 await attendanceCol.add({
@@ -158,6 +158,7 @@ app.post('/api/checkin', async (req, res) => {
                     student_name: studentData.name || '',
                     subject: subjectToUse,
                     status: status,
+                    checkin_date: dateStr,
                     checkin_time: checkinTimeStr,
                     timestamp: admin.firestore.FieldValue.serverTimestamp()
                 });
@@ -178,6 +179,59 @@ app.post('/api/checkin', async (req, res) => {
     } catch (err) {
         console.error("Checkin Error:", err);
         res.status(500).json({ message: "เกิดข้อผิดพลาดทางเซิร์ฟเวอร์" });
+    }
+});
+
+// ----------------------------------------------------
+// 🆕 API ดึงประวัติการเช็คชื่อย้อนหลัง (Attendance History)
+// ----------------------------------------------------
+app.get('/api/attendance/history', checkFirebaseConnection, async (req, res) => {
+    try {
+        const { subject, date, student_id } = req.query;
+
+        let query = attendanceCol;
+
+        if (subject && subject !== 'ALL') {
+            query = query.where('subject', '==', subject);
+        }
+        if (student_id) {
+            query = query.where('student_id', '==', student_id.toString().trim());
+        }
+
+        const snap = await query.get();
+        const logs = [];
+
+        snap.forEach(doc => {
+            const data = doc.data();
+            
+            // กรองตามวันที่ถ้ามีการระบุ
+            if (date && data.checkin_date && data.checkin_date !== date) {
+                return;
+            }
+
+            let timeFormatted = data.checkin_time || '-';
+            if (data.timestamp && data.timestamp.toDate) {
+                const tsDate = data.timestamp.toDate();
+                timeFormatted = tsDate.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            }
+
+            logs.push({
+                id: doc.id,
+                student_id: data.student_id,
+                student_name: data.student_name || 'ไม่ระบุชื่อ',
+                subject: data.subject || '-',
+                status: data.status || 'มาเรียน',
+                date: data.checkin_date || (data.timestamp && data.timestamp.toDate ? data.timestamp.toDate().toLocaleDateString('th-TH') : '-'),
+                time: timeFormatted
+            });
+        });
+
+        // เรียงลำดับจากล่าสุดไปเก่าสุด
+        logs.sort((a, b) => b.id.localeCompare(a.id));
+
+        res.json(logs);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
     }
 });
 
@@ -254,11 +308,14 @@ app.post('/api/scan', checkFirebaseConnection, async (req, res) => {
         if (!student_id) return res.status(400).json({ error: "ข้อมูลไม่ครบถ้วน" });
 
         const cleanId = student_id.toString().trim();
+        const now = new Date();
 
         await attendanceCol.add({
             student_id: cleanId,
             subject: subject || 'GENERAL',
             status: 'มาเรียน',
+            checkin_date: now.toLocaleDateString('th-TH'),
+            checkin_time: now.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }),
             timestamp: admin.firestore.FieldValue.serverTimestamp()
         });
 
@@ -268,7 +325,7 @@ app.post('/api/scan', checkFirebaseConnection, async (req, res) => {
     }
 });
 
-// API เพิ่มนักศึกษา (ตัดช่องว่างอัตโนมัติ)
+// API เพิ่มนักศึกษา
 app.post('/api/students', checkFirebaseConnection, async (req, res) => {
     try {
         const { student_id, name, subject } = req.body;
@@ -353,7 +410,7 @@ app.get('/api/export/:subject', checkFirebaseConnection, async (req, res) => {
 });
 
 // ----------------------------------------------------
-// สั่งรัน Server (สำหรับ Render Port Binding)
+// สั่งรัน Server
 // ----------------------------------------------------
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
