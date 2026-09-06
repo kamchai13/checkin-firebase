@@ -15,10 +15,9 @@ app.use(express.static(__dirname));
 let serviceAccount;
 
 if (process.env.FIREBASE_CONFIG) {
-  // สำหรับใช้งานบน Render
-  const rawConfig = process.env.FIREBASE_CONFIG;
-  const configString = rawConfig.replace(/\n/g, "\\n");
-  serviceAccount = JSON.parse(configString);
+  // อ่านค่าแบบ Base64 ป้องกันปัญหาอักขระพิเศษและตัวขึ้นบรรทัดใหม่
+  const decodedConfig = Buffer.from(process.env.FIREBASE_CONFIG, 'base64').toString('utf-8');
+  serviceAccount = JSON.parse(decodedConfig);
 } else {
   // สำหรับรับบนเครื่อง Local
   try {
