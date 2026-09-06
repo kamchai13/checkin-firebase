@@ -11,40 +11,53 @@ app.use(express.json());
 app.use(express.static(__dirname));
 
 // ----------------------------------------------------
-// เชื่อมต่อ Firebase Firestore
+// เชื่อมต่อ Firebase Firestore (รองรับทั้ง Render และ Local)
 // ----------------------------------------------------
-let serviceAccount;
+let serviceAccount = null;
 
 if (process.env.FIREBASE_CONFIG) {
-  // อ่านค่าแบบ Base64 ป้องกันปัญหาอักขระพิเศษและตัวขึ้นบรรทัดใหม่
-  const decodedConfig = Buffer.from(process.env.FIREBASE_CONFIG, 'base64').toString('utf-8');
-  serviceAccount = JSON.parse(decodedConfig);
+  try {
+    // อ่านค่าแบบ Base64 จาก Environment Variable บน Render
+    const decodedConfig = Buffer.from(process.env.FIREBASE_CONFIG, 'base64').toString('utf-8');
+    serviceAccount = JSON.parse(decodedConfig);
+  } catch (err) {
+    console.error("❌ Failed to parse FIREBASE_CONFIG from env:", err.message);
+  }
 } else {
-  // สำหรับรันบนเครื่อง Local (รองรับทั้งชื่อไฟล์ปกติและชื่อที่มี .json ซ้ำ)
+  // สำหรับรันบนเครื่อง Local
   try {
     if (fs.existsSync('./serviceAccountKey.json')) {
       serviceAccount = require('./serviceAccountKey.json');
     } else if (fs.existsSync('./serviceAccountKey.json.json')) {
       serviceAccount = require('./serviceAccountKey.json.json');
     } else {
-      console.error("Local Firebase key file not found!");
+      console.error("❌ Local Firebase key file not found!");
     }
   } catch (err) {
-    console.error("Error loading local serviceAccountKey:", err.message);
+    console.error("❌ Error loading local serviceAccountKey:", err.message);
   }
 }
 
-if (serviceAccount) {
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount)
-  });
-} else {
-  console.error("CRITICAL: Firebase serviceAccount is undefined. Firestore will not work!");
-}
+// ตรวจสอบการ Initialize
+let db = null;
+let studentsCol = null;
+let attendanceCol = null;
 
-const db = admin.firestore();
-const studentsCol = db.collection('students');
-const attendanceCol = db.collection('attendance');
+if (serviceAccount) {
+  try {
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount)
+    });
+    db = admin.firestore();
+    studentsCol = db.collection('students');
+    attendanceCol = db.collection('attendance');
+    console.log("🔥 Firebase Firestore connected successfully!");
+  } catch (err) {
+    console.error("❌ Firebase initialization failed:", err.message);
+  }
+} else {
+  console.error("⚠️ CRITICAL: Firebase serviceAccount is undefined. Firestore operations will fail!");
+}
 
 function calculateGrade(total) {
     if (total >= 80) return 'A';
@@ -56,6 +69,14 @@ function calculateGrade(total) {
     if (total >= 50) return 'D';
     return 'F';
 }
+
+// Middleware ตรวจสอบการเชื่อมต่อ Firebase ก่อนรับ API
+const checkFirebaseConnection = (req, res, next) => {
+  if (!db) {
+    return res.status(500).json({ error: "Firebase DB is not initialized. Please check FIREBASE_CONFIG environment variable." });
+  }
+  next();
+};
 
 // ----------------------------------------------------
 // Routes หน้าเว็บ
@@ -71,7 +92,7 @@ app.get('/checkin.html', (req, res) => {
 // ----------------------------------------------------
 // API ระบบเช็คชื่อ (Firebase Firestore)
 // ----------------------------------------------------
-app.post('/api/checkin', async (req, res) => {
+app.post('/api/checkin', checkFirebaseConnection, async (req, res) => {
     try {
         const { courseKey, studentId } = req.body;
         
@@ -108,7 +129,7 @@ app.post('/api/checkin', async (req, res) => {
 });
 
 // API ดึงรายชื่อนักศึกษา
-app.get('/api/students/:subject', async (req, res) => {
+app.get('/api/students/:subject', checkFirebaseConnection, async (req, res) => {
     try {
         const { subject } = req.params;
 
@@ -154,7 +175,7 @@ app.get('/api/students/:subject', async (req, res) => {
 });
 
 // API อัปเดตคะแนน
-app.post('/api/scores/update', async (req, res) => {
+app.post('/api/scores/update', checkFirebaseConnection, async (req, res) => {
     try {
         const { student_id, score_assignment, score_midterm, score_final } = req.body;
         const cleanId = student_id.toString().trim();
@@ -172,7 +193,7 @@ app.post('/api/scores/update', async (req, res) => {
 });
 
 // API สแกนฝั่งอาจารย์
-app.post('/api/scan', async (req, res) => {
+app.post('/api/scan', checkFirebaseConnection, async (req, res) => {
     try {
         const { student_id, subject } = req.body;
         if (!student_id) return res.status(400).json({ error: "ข้อมูลไม่ครบถ้วน" });
@@ -192,7 +213,7 @@ app.post('/api/scan', async (req, res) => {
 });
 
 // API เพิ่มนักศึกษา
-app.post('/api/students', async (req, res) => {
+app.post('/api/students', checkFirebaseConnection, async (req, res) => {
     try {
         const { student_id, name, subject } = req.body;
         if (!student_id) return res.status(400).json({ error: "ต้องระบุรหัสนักศึกษา" });
@@ -214,7 +235,7 @@ app.post('/api/students', async (req, res) => {
 });
 
 // API ส่งออก Excel
-app.get('/api/export/:subject', async (req, res) => {
+app.get('/api/export/:subject', checkFirebaseConnection, async (req, res) => {
     try {
         const { subject } = req.params;
 
