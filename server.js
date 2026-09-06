@@ -11,31 +11,23 @@ app.use(express.json());
 app.use(express.static(__dirname));
 
 // ----------------------------------------------------
-// เชื่อมต่อ Firebase Firestore (รองรับทั้ง Render และ Local)
+// เชื่อมต่อ Firebase Firestore (รองรับทั้ง Local และ Render)
 // ----------------------------------------------------
 let serviceAccount = null;
 
-if (process.env.FIREBASE_CONFIG) {
-  try {
-    // อ่านค่าแบบ Base64 จาก Environment Variable บน Render
+try {
+  if (fs.existsSync('./serviceAccountKey.json')) {
+    serviceAccount = require('./serviceAccountKey.json');
+  } else if (fs.existsSync('./serviceAccountKey.json.json')) {
+    serviceAccount = require('./serviceAccountKey.json.json');
+  } else if (process.env.FIREBASE_CONFIG) {
     const decodedConfig = Buffer.from(process.env.FIREBASE_CONFIG, 'base64').toString('utf-8');
     serviceAccount = JSON.parse(decodedConfig);
-  } catch (err) {
-    console.error("❌ Failed to parse FIREBASE_CONFIG from env:", err.message);
+  } else {
+    console.error("❌ Local Firebase key file not found!");
   }
-} else {
-  // สำหรับรันบนเครื่อง Local
-  try {
-    if (fs.existsSync('./serviceAccountKey.json')) {
-      serviceAccount = require('./serviceAccountKey.json');
-    } else if (fs.existsSync('./serviceAccountKey.json.json')) {
-      serviceAccount = require('./serviceAccountKey.json.json');
-    } else {
-      console.error("❌ Local Firebase key file not found!");
-    }
-  } catch (err) {
-    console.error("❌ Error loading local serviceAccountKey:", err.message);
-  }
+} catch (err) {
+  console.error("❌ Error loading serviceAccountKey:", err.message);
 }
 
 // ตรวจสอบการ Initialize
@@ -73,7 +65,7 @@ function calculateGrade(total) {
 // Middleware ตรวจสอบการเชื่อมต่อ Firebase ก่อนรับ API
 const checkFirebaseConnection = (req, res, next) => {
   if (!db) {
-    return res.status(500).json({ error: "Firebase DB is not initialized. Please check FIREBASE_CONFIG environment variable." });
+    return res.status(500).json({ error: "Firebase DB is not initialized. Please check serviceAccountKey.json or FIREBASE_CONFIG." });
   }
   next();
 };
@@ -90,7 +82,7 @@ app.get('/checkin.html', (req, res) => {
 });
 
 // ----------------------------------------------------
-// API ระบบเช็คชื่อ (ปรับปรุงระบบค้นหารหัสนักศึกษาเพิ่มเติม)
+// API ระบบเช็คชื่อ (ค้นหารหัสนักศึกษาแบบยืดหยุ่น)
 // ----------------------------------------------------
 app.post('/api/checkin', checkFirebaseConnection, async (req, res) => {
     try {
@@ -103,23 +95,24 @@ app.post('/api/checkin', checkFirebaseConnection, async (req, res) => {
         const cleanStudentId = studentId.toString().trim();
         const cleanCourseKey = courseKey ? courseKey.toString().trim() : '';
 
-        // 1. ค้นหานักศึกษาจาก Document ID ก่อน
-        let docRef = studentsCol.doc(cleanStudentId);
-        let docSnap = await docRef.get();
         let studentData = null;
+
+        // 1. ค้นหาจาก Document ID ก่อน
+        const docRef = studentsCol.doc(cleanStudentId);
+        const docSnap = await docRef.get();
 
         if (docSnap.exists) {
             studentData = docSnap.data();
         } else {
-            // 2. ถ้าไม่เจอ ลองค้นจาก Field 'student_id' แบบ String
-            let querySnap = await studentsCol.where('student_id', '==', cleanStudentId).limit(1).get();
+            // 2. ถ้าไม่เจอ ค้นจาก field student_id (String)
+            let querySnap = await studentsCol.where('student_id', '==', cleanStudentId).get();
             if (!querySnap.empty) {
                 studentData = querySnap.docs[0].data();
             } else {
-                // 3. เผื่อกรณีข้อมูลใน DB เก็บรหัสเป็นตัวเลข (Number)
+                // 3. เผื่อใน DB เก็บรหัสเป็น Number
                 const numStudentId = Number(cleanStudentId);
                 if (!isNaN(numStudentId)) {
-                    querySnap = await studentsCol.where('student_id', '==', numStudentId).limit(1).get();
+                    querySnap = await studentsCol.where('student_id', '==', numStudentId).get();
                     if (!querySnap.empty) {
                         studentData = querySnap.docs[0].data();
                     }
