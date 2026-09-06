@@ -361,74 +361,7 @@
                 <label for="currentSubject">เลือกรายวิชา:</label>
                 <select id="currentSubject" onchange="onSubjectChange('checkin')"></select>
             </div>
-            <!-- 📌 ตารางแสดงประวัติการเช็คชื่อย้อนหลัง -->
-<div style="margin-top: 25px; padding: 15px; background: white; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
-    <h3 style="margin-bottom: 10px; color: #333;">📋 ประวัติการเช็คชื่อย้อนหลัง</h3>
-    <table border="1" style="width: 100%; border-collapse: collapse; text-align: left;">
-        <thead>
-            <tr style="background-color: #f2f2f2;">
-                <th style="padding: 8px; text-align: center;">ลำดับ</th>
-                <th style="padding: 8px;">รหัสนักศึกษา</th>
-                <th style="padding: 8px;">ชื่อ-นามสกุล</th>
-                <th style="padding: 8px; text-align: center;">วันที่</th>
-                <th style="padding: 8px; text-align: center;">เวลา</th>
-                <th style="padding: 8px; text-align: center;">สถานะ</th>
-            </tr>
-        </thead>
-        <tbody id="historyTableBody">
-            <tr>
-                <td colspan="6" style="text-align: center; padding: 12px; color: #666;">กำลังโหลดข้อมูลประวัติ...</td>
-            </tr>
-        </tbody>
-    </table>
-</div>
-
-<script>
-    // ฟังก์ชันดึงประวัติการเช็คชื่อย้อนหลัง
-    async function loadAttendanceHistory() {
-        try {
-            const subjectSelect = document.getElementById('currentSubject');
-            const subject = subjectSelect ? subjectSelect.value : 'ALL';
             
-            const response = await fetch(`/api/attendance/history?subject=${encodeURIComponent(subject)}`);
-            const logs = await response.json();
-            
-            let html = '';
-            if (!logs || logs.length === 0) {
-                html = '<tr><td colspan="6" style="text-align:center; padding:12px; color:#999;">ยังไม่มีประวัติการเช็คชื่อในระบบ</td></tr>';
-            } else {
-                logs.forEach((log, index) => {
-                    const statusBadge = log.status === 'สาย' 
-                        ? '<span style="color: #d9534f; font-weight: bold;">สาย</span>' 
-                        : '<span style="color: #5cb85c; font-weight: bold;">มาเรียน</span>';
-
-                    html += `
-                        <tr>
-                            <td style="text-align:center; padding:8px;">${index + 1}</td>
-                            <td style="padding:8px;">${log.student_id}</td>
-                            <td style="padding:8px;">${log.student_name}</td>
-                            <td style="text-align:center; padding:8px;">${log.date}</td>
-                            <td style="text-align:center; padding:8px;">${log.time}</td>
-                            <td style="text-align:center; padding:8px;">${statusBadge}</td>
-                        </tr>
-                    `;
-                });
-            }
-
-            const tableBody = document.getElementById('historyTableBody');
-            if (tableBody) {
-                tableBody.innerHTML = html;
-            }
-        } catch (err) {
-            console.error("เกิดข้อผิดพลาดในการดึงประวัติ:", err);
-        }
-    }
-
-    // เรียกโหลดประวัติทันทีเมื่อเปิดหน้าเว็บ
-    document.addEventListener("DOMContentLoaded", function() {
-        loadAttendanceHistory();
-    });
-</script>
             
             <div id="subjectInfoBox" style="background:#eef7ee; padding:15px; border-radius:6px; margin-bottom:15px; display:none; border-left:4px solid #006633;">
                 <h3 id="infoTitle" style="color:#004d26;">-</h3>
@@ -1611,46 +1544,48 @@
         selectSubject();
     }
 });
-</script>
-// --------------------------------------------------
-        // ฟังก์ชันดึงประวัติการเช็คชื่อย้อนหลัง
-        // --------------------------------------------------
-        async function loadAttendanceHistory(subject = 'ALL') {
-            try {
-                const response = await fetch(`/api/attendance/history?subject=${encodeURIComponent(subject)}`);
-                const logs = await response.json();
-                
-                console.log("ประวัติการเช็คชื่อ:", logs);
-                
-                let html = '';
+// ฟังก์ชันดึงประวัติการเช็คชื่อย้อนหลัง
+async function loadAttendanceHistory() {
+        try {
+            const subjectSelect = document.getElementById('currentSubject');
+            const subject = subjectSelect ? subjectSelect.value : 'ALL';
+            
+            const response = await fetch(`/api/attendance/history?subject=${encodeURIComponent(subject)}`);
+            const logs = await response.json();
+            
+            let html = '';
+            if (!logs || logs.length === 0) {
+                html = '<tr><td colspan="6" style="text-align:center; padding:12px; color:#999;">ยังไม่มีประวัติการเช็คชื่อในระบบ</td></tr>';
+            } else {
                 logs.forEach((log, index) => {
+                    const statusBadge = log.status === 'สาย' 
+                        ? '<span style="color: #d9534f; font-weight: bold;">สาย</span>' 
+                        : '<span style="color: #5cb85c; font-weight: bold;">มาเรียน</span>';
+
                     html += `
                         <tr>
-                            <td>${index + 1}</td>
-                            <td>${log.student_id}</td>
-                            <td>${log.student_name}</td>
-                            <td>${log.date}</td>
-                            <td>${log.time}</td>
-                            <td>${log.status}</td>
+                            <td style="text-align:center; padding:8px;">${index + 1}</td>
+                            <td style="padding:8px;">${log.student_id}</td>
+                            <td style="padding:8px;">${log.student_name}</td>
+                            <td style="text-align:center; padding:8px;">${log.date}</td>
+                            <td style="text-align:center; padding:8px;">${log.time}</td>
+                            <td style="text-align:center; padding:8px;">${statusBadge}</td>
                         </tr>
                     `;
                 });
-
-                // นำไปใส่ใน <tbody> ของตารางที่มี id="historyTableBody"
-                const tableBody = document.getElementById('historyTableBody');
-                if (tableBody) {
-                    tableBody.innerHTML = html;
-                }
-            } catch (err) {
-                console.error("ไม่สามารถดึงประวัติการเช็คชื่อได้:", err);
             }
+
+            const tableBody = document.getElementById('historyTableBody');
+            if (tableBody) {
+                tableBody.innerHTML = html;
+            }
+        } catch (err) {
+            console.error("เกิดข้อผิดพลาดในการดึงประวัติ:", err);
         }
+    }
 
-        // เรียกใช้งานฟังก์ชันทันทีเมื่อเปิดหน้าเว็บ
-        window.onload = function() {
-            loadAttendanceHistory();
-        };
-    </script>
-
-</body>
-</html>
+    // สั่งให้โหลดข้อมูลเมื่อเปิดหน้าเว็บ
+    document.addEventListener("DOMContentLoaded", function() {
+        loadAttendanceHistory();
+    });
+</script>
