@@ -8,12 +8,15 @@
     <style>
         * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, sans-serif; }
         body { background: #0f172a; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 20px; }
-        .card { background: white; padding: 32px 24px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); width: 100%; max-width: 380px; text-align: center; }
+        .card { background: white; padding: 32px 24px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); width: 100%; max-width: 400px; text-align: center; }
         h2 { color: #1e293b; margin: 0 0 8px 0; font-size: 1.5rem; }
-        p.subtitle { color: #64748b; font-size: 0.95rem; margin-bottom: 24px; }
+        p.subtitle { color: #64748b; font-size: 0.95rem; margin-bottom: 20px; }
+        .time-group { margin-bottom: 15px; text-align: left; background: #f8fafc; padding: 12px; border-radius: 10px; border: 1px solid #e2e8f0; }
+        .time-group label { font-size: 0.85rem; color: #475569; font-weight: bold; display: block; margin-bottom: 4px; }
+        .time-group input[type="time"] { width: 100%; padding: 8px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 1rem; text-align: center; }
         .input-group { margin-bottom: 20px; }
-        input { width: 100%; padding: 16px; border: 2px solid #e2e8f0; border-radius: 12px; font-size: 1.2rem; text-align: center; font-weight: bold; outline: none; transition: 0.2s; }
-        input:focus { border-color: #16a34a; box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.15); }
+        input[type="text"] { width: 100%; padding: 16px; border: 2px solid #e2e8f0; border-radius: 12px; font-size: 1.2rem; text-align: center; font-weight: bold; outline: none; transition: 0.2s; }
+        input[type="text"]:focus { border-color: #16a34a; box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.15); }
         button { width: 100%; padding: 16px; background: #16a34a; color: white; border: none; border-radius: 12px; font-size: 1.1rem; font-weight: bold; cursor: pointer; transition: 0.2s; }
         button:active { transform: scale(0.98); }
     </style>
@@ -22,53 +25,99 @@
     <div class="card">
         <h2>เช็คชื่อเข้าเรียน</h2>
         <p class="subtitle" id="courseLabel">กำลังโหลดรายวิชา...</p>
+        
+        <!-- ช่องระบุเวลาเริ่มเรียนสำหรับคำนวณสาย 20 นาที -->
+        <div class="time-group">
+            <label for="classStartTime">⏰ เวลาเริ่มคาบเรียน (เกิน 20 น. ถือว่าสาย):</label>
+            <input type="time" id="classStartTime" value="09:00">
+        </div>
+
         <div class="input-group">
-            <input type="text" id="studentId" placeholder="กรอกรหัสนักศึกษา" autofocus maxlength="15" inputmode="numeric">
+            <input type="text" id="studentId" placeholder="กรอก/สแกนรหัสนักศึกษา" autofocus maxlength="15" inputmode="numeric">
         </div>
         <button onclick="doCheckin()">บันทึกเข้าเรียน</button>
     </div>
 
     <script>
         const urlParams = new URLSearchParams(window.location.search);
-        const courseKey = urlParams.get('checkin');
+        const courseKey = urlParams.get('checkin') || urlParams.get('subject') || '';
 
         if (!courseKey) {
-            Swal.fire({ icon: 'error', title: 'ไม่พบข้อมูลวิชา', text: 'กรุณาสแกน QR Code ใหม่อีกครั้ง' });
+            document.getElementById('courseLabel').innerText = 'วิชา: GENERAL (ทั่วไป)';
         } else {
             document.getElementById('courseLabel').innerText = `รหัสวิชา: ${courseKey}`;
         }
 
+        let isProcessing = false;
+
         async function doCheckin() {
-            const studentId = document.getElementById('studentId').value.trim();
+            if (isProcessing) return;
+
+            const studentIdInput = document.getElementById('studentId');
+            const studentId = studentIdInput.value.trim();
+            const classStartTime = document.getElementById('classStartTime').value;
+
             if (!studentId) {
-                Swal.fire({ icon: 'warning', title: 'กรุณากรอกรหัสนักศึกษา' });
+                Swal.fire({ icon: 'warning', title: 'กรุณากรอกรหัสนักศึกษา', timer: 1500, showConfirmButton: false });
                 return;
             }
+
+            isProcessing = true;
 
             try {
                 const response = await fetch('/api/checkin', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ courseKey: courseKey, studentId: studentId })
+                    body: JSON.stringify({ 
+                        courseKey: courseKey, 
+                        studentId: studentId,
+                        classStartTime: classStartTime
+                    })
                 });
 
                 const result = await response.json();
+                
                 if (response.ok) {
+                    const isLate = result.status === 'สาย';
+                    
                     Swal.fire({
-                        icon: 'success',
-                        title: 'เช็คชื่อสำเร็จ!',
-                        text: result.message || 'บันทึกเวลาเข้าเรียนเรียบร้อยแล้ว',
-                        timer: 2000,
+                        icon: isLate ? 'warning' : 'success',
+                        title: isLate ? 'เข้าเรียนสาย ⚠️' : 'เช็คชื่อสำเร็จ! ✅',
+                        html: `
+                            <p style="font-size: 1.1rem; margin-bottom: 5px;"><b>${result.studentName || studentId}</b></p>
+                            <p style="color: #64748b; margin: 0;">เวลาเช็คชื่อ: <b>${result.checkinTime || '-'} น.</b></p>
+                        `,
+                        timer: 2500,
                         showConfirmButton: false
                     });
-                    document.getElementById('studentId').value = '';
+
+                    studentIdInput.value = '';
                 } else {
-                    Swal.fire({ icon: 'error', title: 'เช็คชื่อไม่สำเร็จ', text: result.message || 'ไม่พบรหัสนักศึกษาในวิชานี้' });
+                    Swal.fire({ 
+                        icon: 'error', 
+                        title: 'เช็คชื่อไม่สำเร็จ', 
+                        text: result.message || 'ไม่พบรหัสนักศึกษาในระบบ' 
+                    });
                 }
             } catch (err) {
-                Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้' });
+                Swal.fire({ 
+                    icon: 'error', 
+                    title: 'เกิดข้อผิดพลาด', 
+                    text: 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้' 
+                });
+            } finally {
+                isProcessing = false;
+                studentIdInput.focus();
             }
         }
+
+        // เมื่อพิมพ์รหัสแล้วกด Enter หรือใช้ Barcode/QR Scanner ยิงรหัสเข้ามา ให้ทำงานทันที
+        document.getElementById('studentId').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                doCheckin();
+            }
+        });
     </script>
 </body>
 </html>
