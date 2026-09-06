@@ -3,6 +3,7 @@ const cors = require('cors');
 const ExcelJS = require('exceljs');
 const path = require('path');
 const admin = require('firebase-admin');
+const fs = require('fs');
 
 const app = express();
 app.use(cors());
@@ -19,17 +20,27 @@ if (process.env.FIREBASE_CONFIG) {
   const decodedConfig = Buffer.from(process.env.FIREBASE_CONFIG, 'base64').toString('utf-8');
   serviceAccount = JSON.parse(decodedConfig);
 } else {
-  // สำหรับรับบนเครื่อง Local
+  // สำหรับรันบนเครื่อง Local (รองรับทั้งชื่อไฟล์ปกติและชื่อที่มี .json ซ้ำ)
   try {
-    serviceAccount = require('./serviceAccountKey.json');
+    if (fs.existsSync('./serviceAccountKey.json')) {
+      serviceAccount = require('./serviceAccountKey.json');
+    } else if (fs.existsSync('./serviceAccountKey.json.json')) {
+      serviceAccount = require('./serviceAccountKey.json.json');
+    } else {
+      console.error("Local Firebase key file not found!");
+    }
   } catch (err) {
-    console.error("Local serviceAccountKey.json not found!");
+    console.error("Error loading local serviceAccountKey:", err.message);
   }
 }
 
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount)
-});
+if (serviceAccount) {
+  admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount)
+  });
+} else {
+  console.error("CRITICAL: Firebase serviceAccount is undefined. Firestore will not work!");
+}
 
 const db = admin.firestore();
 const studentsCol = db.collection('students');
@@ -231,7 +242,7 @@ app.get('/api/export/:subject', async (req, res) => {
             { header: 'งาน (50)', key: 'assign', width: 12 },
             { header: 'กลางภาค (20)', key: 'mid', width: 12 },
             { header: 'ปลายภาค (20)', key: 'final', width: 12 },
-            { header: 'รวม (100)', key: 'total', width: 100 },
+            { header: 'รวม (100)', key: 'total', width: 15 },
             { header: 'เกรด', key: 'grade', width: 10 }
         ];
 
@@ -262,5 +273,10 @@ app.get('/api/export/:subject', async (req, res) => {
     }
 });
 
+// ----------------------------------------------------
+// สั่งรัน Server (สำหรับ Render Port Binding)
+// ----------------------------------------------------
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 ระบบพร้อมใช้งานถาวรด้วย Firebase ที่ port ${PORT}`));
+app.listen(PORT, () => {
+    console.log(`🚀 ระบบพร้อมใช้งานบน Port ${PORT}`);
+});
