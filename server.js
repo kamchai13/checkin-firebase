@@ -90,40 +90,77 @@ app.get('/checkin.html', (req, res) => {
 });
 
 // ----------------------------------------------------
-// API ระบบเช็คชื่อ (Firebase Firestore)
+// API ระบบเช็คชื่อ (Firebase Firestore + ระบบคำนวณเวลาสาย 20 นาที)
 // ----------------------------------------------------
 app.post('/api/checkin', checkFirebaseConnection, async (req, res) => {
     try {
-        const { courseKey, studentId } = req.body;
+        const { courseKey, studentId, classStartTime } = req.body;
         
         if (!studentId) {
-            return res.status(400).json({ message: "กรุณากรอกรหัสนักศึกษา" });
+            return res.status(400).json({ message: "กรุณากรอกหรือสแกนรหัสนักศึกษา" });
         }
 
         const cleanStudentId = studentId.toString().trim();
         const cleanCourseKey = courseKey ? courseKey.toString().trim() : '';
 
-        // ค้นหานักศึกษาใน Firebase
-        const docRef = studentsCol.doc(cleanStudentId);
-        const docSnap = await docRef.get();
+        // 1. ค้นหานักศึกษาจาก Document ID ก่อน
+        let docRef = studentsCol.doc(cleanStudentId);
+        let docSnap = await docRef.get();
+        let studentData = null;
 
-        if (!docSnap.exists) {
-            return res.status(404).json({ message: `ไม่พบรหัสนักศึกษา ${cleanStudentId} ในระบบ` });
+        if (docSnap.exists) {
+            studentData = docSnap.data();
+        } else {
+            // 2. ถ้าค้นหาจาก Document ID ไม่เจอ ให้ลอง Query จาก Field 'student_id'
+            const querySnap = await studentsCol.where('student_id', '==', cleanStudentId).limit(1).get();
+            if (!querySnap.empty) {
+                studentData = querySnap.docs[0].data();
+            }
         }
 
-        const studentData = docSnap.data();
+        // หากยังไม่พบข้อมูลในระบบ
+        if (!studentData) {
+            return res.status(404).json({ message: `❌ ไม่พบรหัสนักศึกษา ${cleanStudentId} ในระบบ` });
+        }
+
         const subjectToUse = cleanCourseKey || studentData.subject || 'GENERAL';
 
-        // บันทึกเวลาเข้าเรียน
+        // คำนวณเวลาปัจจุบันและตรวจจับการเข้าเรียนสาย (เกิน 20 นาที)
+        const now = new Date();
+        const checkinTimeStr = now.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        let status = 'มาเรียน';
+
+        if (classStartTime) {
+            const [startHour, startMinute] = classStartTime.split(':').map(Number);
+            const lateThreshold = new Date();
+            lateThreshold.setHours(startHour, startMinute + 20, 0, 0); // เกิน 20 นาที = สาย
+
+            if (now > lateThreshold) {
+                status = 'สาย';
+            }
+        }
+
+        // บันทึกเวลาเข้าเรียนลง Firestore
         await attendanceCol.add({
             student_id: cleanStudentId,
+            student_name: studentData.name || '',
             subject: subjectToUse,
+            status: status,
+            checkin_time: checkinTimeStr,
             timestamp: admin.firestore.FieldValue.serverTimestamp()
         });
 
-        res.json({ message: `เช็คชื่อสำเร็จ! ยินดีต้อนรับ ${studentData.name || cleanStudentId}` });
+        const statusText = status === 'สาย' ? '⚠️ (สาย)' : '✅ (มาเรียน)';
+        res.json({ 
+            success: true,
+            message: `เช็คชื่อสำเร็จ! ${studentData.name || cleanStudentId} ${statusText}`,
+            studentId: cleanStudentId,
+            studentName: studentData.name || cleanStudentId,
+            checkinTime: checkinTimeStr,
+            status: status
+        });
     } catch (err) {
-        console.error(err);
+        console.error("Checkin Error:", err);
         res.status(500).json({ message: "เกิดข้อผิดพลาดทางเซิร์ฟเวอร์" });
     }
 });
@@ -203,6 +240,7 @@ app.post('/api/scan', checkFirebaseConnection, async (req, res) => {
         await attendanceCol.add({
             student_id: cleanId,
             subject: subject || 'GENERAL',
+            status: 'มาเรียน',
             timestamp: admin.firestore.FieldValue.serverTimestamp()
         });
 
@@ -212,7 +250,7 @@ app.post('/api/scan', checkFirebaseConnection, async (req, res) => {
     }
 });
 
-// API เพิ่มนักศึกษา
+// API เพิ่มนักศึกษา (ตัดช่องว่างอัตโนมัติ)
 app.post('/api/students', checkFirebaseConnection, async (req, res) => {
     try {
         const { student_id, name, subject } = req.body;
